@@ -1,6 +1,6 @@
 namespace Domain.ValueObjects;
 
-public class PasswordHash
+public sealed record PasswordHash
 {
     public string Value { get; }
 
@@ -12,5 +12,5 @@ public class PasswordHash
         Value = value;
     }
 
-    public override string ToString() => Value;
+    public override string ToString() => "[PasswordHash]";
 }

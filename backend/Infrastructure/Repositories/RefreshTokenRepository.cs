@@ -37,4 +37,16 @@ public class RefreshTokenRepository : IRefreshTokenRepository
         token.Revoke();
         await _db.SaveChangesAsync();
     }
+
+    public async Task RevokeAllByUserIdAsync(Guid userId)
+    {
+        var tokens = await _db.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAt == null)
+            .ToListAsync();
+
+        foreach (var token in tokens)
+            token.Revoke();
+
+        await _db.SaveChangesAsync();
+    }
 }

@@ -1,4 +1,5 @@
 using Application.DTOs;
+using Application.Exceptions;
 using Application.Interfaces;
 using Domain.Entities;
 using Domain.ValueObjects;
@@ -8,54 +9,36 @@ namespace Application.UseCases;
 public class RegisterUseCase
 {
     private readonly IUserRepository _users;
-    private readonly IRefreshTokenRepository _tokens;
-    private readonly ITokenService _tokenService;
+    private readonly IPasswordHasher _passwordHasher;
+    private readonly LoginUseCase _loginUseCase;
 
     public RegisterUseCase(
         IUserRepository users,
-        IRefreshTokenRepository tokens,
-        ITokenService tokenService)
+        IPasswordHasher passwordHasher,
+        LoginUseCase loginUseCase)
     {
         _users = users;
-        _tokens = tokens;
-        _tokenService = tokenService;
+        _passwordHasher = passwordHasher;
+        _loginUseCase = loginUseCase;
     }
 
     public async Task<(LoginResponse Response, string RawRefreshToken)> ExecuteAsync(RegisterRequest request)
     {
         var email = new Email(request.Email);
 
-        // Email 重複チェック
         var existing = await _users.GetByEmailAsync(email);
         if (existing != null)
-            throw new Exception("Email already registered.");
+            throw new EmailAlreadyExistsException();
 
-        // パスワードハッシュ生成
-        var passwordHash = new PasswordHash(
-            BCrypt.Net.BCrypt.HashPassword(request.Password)
-        );
-
-        // User エンティティ作成
+        var passwordHash = new PasswordHash(_passwordHasher.Hash(request.Password));
         var user = new User(email, passwordHash);
         await _users.AddAsync(user);
 
-        // アクセストークン生成
-        var accessToken = _tokenService.GenerateAccessToken(user);
-
-        // リフレッシュトークン生成（raw + entity）
-        var (rawToken, tokenEntity) = _tokenService.GenerateRefreshToken(user);
-
-        // DB に保存
-        await _tokens.AddAsync(tokenEntity);
-
-        var response = new LoginResponse
+        // ログイン処理を委譲（自動ログイン）
+        return await _loginUseCase.ExecuteAsync(new LoginRequest
         {
-            AccessToken = accessToken,
-            ExpiresIn = 900,
-            UserId = user.Id,
-            Email = user.Email.Value
-        };
-
-        return (response, rawToken);
+            Email = request.Email,
+            Password = request.Password
+        });
     }
 }

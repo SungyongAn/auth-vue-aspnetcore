@@ -1,9 +1,9 @@
 namespace Application.DTOs;
 
-public class LoginResponse
+public record LoginResponse
 {
-    public required string AccessToken { get; set; }
-    public int ExpiresIn { get; set; }
-    public Guid UserId { get; set; }
-    public required string Email { get; set; }
+    public required string AccessToken { get; init; }
+    public int ExpiresIn { get; init; }
+    public Guid UserId { get; init; }
+    public required string Email { get; init; }
 }

@@ -1,4 +1,5 @@
 using Domain.Entities;
+using Infrastructure.Data.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.Data;
@@ -13,6 +14,8 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        // 各Entityのマッピング設定（Configurationsクラスなど）があればここでApply
+
+        modelBuilder.ApplyConfiguration(new UserConfiguration());
+        modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
     }
 }

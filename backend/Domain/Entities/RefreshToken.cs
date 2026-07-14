@@ -9,10 +9,19 @@ public class RefreshToken
     public DateTime CreatedAt { get; private set; }
     public DateTime? RevokedAt { get; private set; }
 
-    private RefreshToken() { }
+    private RefreshToken()
+    {
+        TokenHash = null!;
+    }
 
     public RefreshToken(Guid userId, string tokenHash, DateTime expiresAt)
     {
+        if (string.IsNullOrWhiteSpace(tokenHash))
+            throw new ArgumentException("Token hash cannot be empty.");
+
+        if (expiresAt <= DateTime.UtcNow)
+            throw new ArgumentException("ExpiresAt must be in the future.");
+
         Id = Guid.NewGuid();
         UserId = userId;
         TokenHash = tokenHash;
@@ -25,6 +34,9 @@ public class RefreshToken
 
     public void Revoke()
     {
+        if (RevokedAt != null)
+            throw new InvalidOperationException("Token is already revoked.");
+
         RevokedAt = DateTime.UtcNow;
     }
 }

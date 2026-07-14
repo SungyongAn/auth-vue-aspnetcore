@@ -1,4 +1,5 @@
 using Application.DTOs;
+using Application.Exceptions;
 using Application.Interfaces;
 
 namespace Application.UseCases;
@@ -25,11 +26,11 @@ public class RefreshUseCase
 
         var token = await _tokens.GetValidTokenAsync(hashed);
         if (token == null || !token.IsActive)
-            throw new Exception("Invalid refresh token.");
+            throw new InvalidRefreshTokenException();
 
         var user = await _users.GetByIdAsync(token.UserId);
         if (user == null)
-            throw new Exception("User not found.");
+            throw new UserNotFoundException();
 
         await _tokens.RevokeAsync(token);
 

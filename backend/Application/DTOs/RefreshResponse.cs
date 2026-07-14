@@ -1,7 +1,7 @@
 namespace Application.DTOs;
 
-public class RefreshResponse
+public record RefreshResponse
 {
-    public required string AccessToken { get; set; }
-    public int ExpiresIn { get; set; }
+    public required string AccessToken { get; init; }
+    public int ExpiresIn { get; init; }
 }

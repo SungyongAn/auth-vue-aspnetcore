@@ -1,6 +1,9 @@
 using Application.DTOs;
+using Application.Exceptions;
 using Application.UseCases;
+using Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Api.Controllers;
 
@@ -12,111 +15,81 @@ public class AuthController : ControllerBase
     private readonly LoginUseCase _login;
     private readonly RefreshUseCase _refresh;
     private readonly LogoutUseCase _logout;
+    private readonly JwtOptions _jwtOptions;
 
     public AuthController(
         RegisterUseCase register,
         LoginUseCase login,
         RefreshUseCase refresh,
-        LogoutUseCase logout)
+        LogoutUseCase logout,
+        IOptions<JwtOptions> jwtOptions)
     {
         _register = register;
         _login = login;
         _refresh = refresh;
         _logout = logout;
+        _jwtOptions = jwtOptions.Value;
     }
 
-    // -----------------------------
-    // Register
-    // -----------------------------
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest request)
     {
         var (response, rawRefreshToken) = await _register.ExecuteAsync(request);
-
-        // Cookie に rawRefreshToken を保存
-        Response.Cookies.Append(
-            "refreshToken",
-            rawRefreshToken,
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Path = "/auth/refresh",
-                Expires = DateTime.UtcNow.AddDays(14)
-            }
-        );
-
+        SetRefreshTokenCookie(rawRefreshToken);
         return Ok(response);
     }
 
-    // -----------------------------
-    // Login
-    // -----------------------------
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest request)
     {
         var (response, rawRefreshToken) = await _login.ExecuteAsync(request);
-
-        Response.Cookies.Append(
-            "refreshToken",
-            rawRefreshToken,
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Path = "/auth/refresh",
-                Expires = DateTime.UtcNow.AddDays(14)
-            }
-        );
-
+        SetRefreshTokenCookie(rawRefreshToken);
         return Ok(response);
     }
 
-    // -----------------------------
-    // Refresh
-    // -----------------------------
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh()
     {
-        var rawToken = Request.Cookies["refreshToken"];
-        if (rawToken == null)
-            return Unauthorized("Refresh token missing.");
+        var rawToken = Request.Cookies["refreshToken"]
+            ?? throw new InvalidRefreshTokenException();
 
         var (response, newRawToken) = await _refresh.ExecuteAsync(rawToken);
-
-        // 新しい refreshToken を Cookie に保存（ローテーション）
-        Response.Cookies.Append(
-            "refreshToken",
-            newRawToken,
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Path = "/auth/refresh",
-                Expires = DateTime.UtcNow.AddDays(14)
-            }
-        );
-
+        SetRefreshTokenCookie(newRawToken);
         return Ok(response);
     }
 
-    // -----------------------------
-    // Logout
-    // -----------------------------
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
         var rawToken = Request.Cookies["refreshToken"];
-
         if (rawToken != null)
         {
             await _logout.ExecuteAsync(rawToken);
         }
 
-        // Cookie 削除
+        ClearRefreshTokenCookie();
+        return NoContent();
+    }
+
+    private void SetRefreshTokenCookie(string rawToken)
+    {
+        Response.Cookies.Append(
+            "refreshToken",
+            rawToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Path = "/auth/refresh",
+                Expires = DateTime.UtcNow.AddDays(_jwtOptions.RefreshTokenExpiresInDays)
+            }
+        );
+    }
+
+    private void ClearRefreshTokenCookie()
+    {
         Response.Cookies.Append(
             "refreshToken",
             "",
@@ -129,7 +102,5 @@ public class AuthController : ControllerBase
                 Expires = DateTime.UtcNow.AddDays(-1)
             }
         );
-
-        return NoContent();
     }
 }

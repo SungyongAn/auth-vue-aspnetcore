@@ -1,21 +1,24 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Api</RootNamespace>
-    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>68ef2215-cd24-4b9a-8f27-ace0dca231dd</UserSecretsId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.OpenApi" Version="1.6.22" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
-    <ProjectReference Include="..\Domain\Domain.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
-  </ItemGroup>
-
-  <!-- 必要な NuGet パッケージ -->
 </Project>

@@ -1,0 +1,25 @@
+# 環境変数・シークレット
+.env
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/secrets.json
+
+# .NET ビルド成果物
+**/bin/
+**/obj/
+
+# Docker関連（ローカル専用の上書き設定がある場合）
+docker-compose.override.yml
+
+# IDE・エディタ
+.vs/
+.vscode/
+*.user
+*.suo
+
+# curlの動作確認で作成したCookieファイル
+cookies.txt
+
+# OS固有ファイル
+.DS_Store
+Thumbs.db
