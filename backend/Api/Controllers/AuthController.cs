@@ -2,6 +2,7 @@ using Application.DTOs;
 using Application.Exceptions;
 using Application.UseCases;
 using Infrastructure.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -16,23 +17,33 @@ public class AuthController : ControllerBase
     private readonly RefreshUseCase _refresh;
     private readonly LogoutUseCase _logout;
     private readonly JwtOptions _jwtOptions;
+    private readonly ChangePasswordUseCase _changePassword;
+    private readonly ForgotPasswordUseCase _forgotPassword;
+    private readonly ResetPasswordUseCase _resetPassword;
 
     public AuthController(
-        RegisterUseCase register,
-        LoginUseCase login,
-        RefreshUseCase refresh,
-        LogoutUseCase logout,
-        IOptions<JwtOptions> jwtOptions)
+    RegisterUseCase register,
+    LoginUseCase login,
+    RefreshUseCase refresh,
+    LogoutUseCase logout,
+    ChangePasswordUseCase changePassword,
+    ForgotPasswordUseCase forgotPassword,
+    ResetPasswordUseCase resetPassword,
+    IOptions<JwtOptions> jwtOptions)
     {
         _register = register;
         _login = login;
         _refresh = refresh;
         _logout = logout;
+        _changePassword = changePassword;
+        _forgotPassword = forgotPassword;
+        _resetPassword = resetPassword;
         _jwtOptions = jwtOptions.Value;
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterRequest request)
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LoginResponse>> Register(RegisterRequest request)
     {
         var (response, rawRefreshToken) = await _register.ExecuteAsync(request);
         SetRefreshTokenCookie(rawRefreshToken);
@@ -40,7 +51,8 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginRequest request)
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
         var (response, rawRefreshToken) = await _login.ExecuteAsync(request);
         SetRefreshTokenCookie(rawRefreshToken);
@@ -48,7 +60,8 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh()
+    [ProducesResponseType(typeof(RefreshResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<RefreshResponse>> Refresh()
     {
         var rawToken = Request.Cookies["refreshToken"]
             ?? throw new InvalidRefreshTokenException();
@@ -58,8 +71,36 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("change-password")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
+    {
+        var userId = User.FindFirst("userId")?.Value
+            ?? throw new InvalidOperationException("userId claim not found.");
+
+        await _changePassword.ExecuteAsync(Guid.Parse(userId), request.CurrentPassword, request.NewPassword);
+        return NoContent();
+    }
+
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request)
+    {
+        await _forgotPassword.ExecuteAsync(request.Email);
+        return NoContent();
+    }
+
+    [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request)
+    {
+        await _resetPassword.ExecuteAsync(request.Token, request.NewPassword);
+        return NoContent();
+    }
 
     [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout()
     {
         var rawToken = Request.Cookies["refreshToken"];
@@ -70,6 +111,22 @@ public class AuthController : ControllerBase
 
         ClearRefreshTokenCookie();
         return NoContent();
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    [ProducesResponseType(typeof(UserInfoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public IActionResult Me()
+    {
+        var userId = User.FindFirst("userId")?.Value;
+        var email = User.FindFirst("email")?.Value;
+
+        return Ok(new UserInfoResponse
+        {
+            UserId = userId!,
+            Email = email!
+        });
     }
 
     private void SetRefreshTokenCookie(string rawToken)

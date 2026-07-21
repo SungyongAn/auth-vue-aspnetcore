@@ -1,21 +1,25 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-
-// ページコンポーネント
 import LoginView from "@/views/LoginView.vue";
 import RegisterView from "@/views/RegisterView.vue";
 import DashboardView from "@/views/DashboardView.vue";
+import ForgotPasswordView from "@/views/ForgotPasswordView.vue";
+import ResetPasswordView from "@/views/ResetPasswordView.vue";
+import ChangePasswordView from "@/views/ChangePasswordView.vue";
 
 const routes = [
+  { path: "/", redirect: "/dashboard" },
+  { path: "/login", name: "login", component: LoginView },
+  { path: "/register", name: "register", component: RegisterView },
   {
-    path: "/login",
-    name: "login",
-    component: LoginView,
+    path: "/forgot-password",
+    name: "forgot-password",
+    component: ForgotPasswordView,
   },
   {
-    path: "/register",
-    name: "register",
-    component: RegisterView,
+    path: "/reset-password",
+    name: "reset-password",
+    component: ResetPasswordView,
   },
   {
     path: "/dashboard",
@@ -23,6 +27,13 @@ const routes = [
     component: DashboardView,
     meta: { requiresAuth: true },
   },
+  {
+    path: "/change-password",
+    name: "change-password",
+    component: ChangePasswordView,
+    meta: { requiresAuth: true },
+  },
+  { path: "/:pathMatch(.*)*", redirect: "/" },
 ];
 
 const router = createRouter({
@@ -30,17 +41,10 @@ const router = createRouter({
   routes,
 });
 
-// 認証ガード（Pinia を使用）
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to) => {
   const auth = useAuthStore();
-
-  // ページリロード時に localStorage から復元
-  auth.loadFromStorage();
-
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    next("/login");
-  } else {
-    next();
+    return { name: "login" };
   }
 });
 

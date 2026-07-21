@@ -10,6 +10,12 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
       Jwt__Key: ${JWT_KEY}
       ConnectionStrings__DefaultConnection: "Server=db;Port=3306;Database=authdb;User=authuser;Password=authpass;"
+      Smtp__Host: ${SMTP_HOST}
+      Smtp__Port: ${SMTP_PORT}
+      Smtp__Username: ${SMTP_USERNAME}
+      Smtp__Password: ${SMTP_PASSWORD}
+      Smtp__FromAddress: ${SMTP_FROM_ADDRESS}
+      Frontend__BaseUrl: "http://localhost:5173"
     depends_on:
       db:
         condition: service_healthy

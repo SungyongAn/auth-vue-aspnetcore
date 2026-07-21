@@ -1,11 +1,17 @@
-// src/stores/auth.ts
 import { defineStore } from "pinia";
-import api, { setAccessToken } from "../api/axios";
+import { AuthService } from "@/api/generated";
+import type { LoginResponse } from "@/api/generated";
+import { withAuthRetry } from "@/api/withAuthRetry";
+
+interface AuthUser {
+  id: string;
+  email: string;
+}
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
     accessToken: null as string | null,
-    user: null as any,
+    user: null as AuthUser | null,
   }),
 
   getters: {
@@ -13,52 +19,70 @@ export const useAuthStore = defineStore("auth", {
   },
 
   actions: {
+    setSession(response: LoginResponse) {
+      this.accessToken = response.accessToken;
+      this.user = { id: response.userId, email: response.email };
+    },
+
     async login(email: string, password: string) {
-      const res = await api.post("/auth/login", { email, password });
-
-      this.accessToken = res.data.accessToken;
-      this.user = res.data.user;
-
-      setAccessToken(this.accessToken);
-      localStorage.setItem("accessToken", this.accessToken);
+      const response = await AuthService.postAuthLogin({ email, password });
+      this.setSession(response);
     },
 
     async register(email: string, password: string) {
-      const res = await api.post("/auth/register", { email, password });
-
-      this.accessToken = res.data.accessToken;
-      this.user = res.data.user;
-
-      setAccessToken(this.accessToken);
-      localStorage.setItem("accessToken", this.accessToken);
+      const response = await AuthService.postAuthRegister({ email, password });
+      this.setSession(response);
     },
 
     async refresh() {
       try {
-        const res = await api.post("/auth/refresh");
-
-        this.accessToken = res.data.accessToken;
-        setAccessToken(this.accessToken);
-        localStorage.setItem("accessToken", this.accessToken);
+        const response = await AuthService.postAuthRefresh();
+        this.accessToken = response.accessToken;
       } catch {
-        this.logout();
+        this.clearSession();
+        throw new Error("Refresh failed");
       }
     },
 
-    logout() {
+    async fetchMe() {
+      const me = await withAuthRetry(() => AuthService.getAuthMe());
+      this.user = { id: me.userId, email: me.email };
+    },
+
+    async logout() {
+      try {
+        await AuthService.postAuthLogout();
+      } finally {
+        this.clearSession();
+      }
+    },
+
+    // 追加：ログイン中ユーザーのパスワード変更
+    async changePassword(currentPassword: string, newPassword: string) {
+      await withAuthRetry(() =>
+        AuthService.postAuthChangePassword({
+          currentPassword,
+          newPassword,
+        }),
+      );
+      // パスワード変更成功時、バックエンド側で全セッションが無効化されるため、
+      // 現在のリフレッシュトークンCookieも無効になっている。フロント側も明示的にログアウト状態にする。
+      this.clearSession();
+    },
+
+    // 追加：パスワードリセットメールの送信依頼
+    async forgotPassword(email: string) {
+      await AuthService.postAuthForgotPassword({ email });
+    },
+
+    // 追加：トークンを使った新パスワードの設定
+    async resetPassword(token: string, newPassword: string) {
+      await AuthService.postAuthResetPassword({ token, newPassword });
+    },
+
+    clearSession() {
       this.accessToken = null;
       this.user = null;
-
-      setAccessToken(null);
-      localStorage.removeItem("accessToken");
-    },
-
-    loadFromStorage() {
-      const token = localStorage.getItem("accessToken");
-      if (token) {
-        this.accessToken = token;
-        setAccessToken(token);
-      }
     },
   },
 });

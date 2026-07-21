@@ -89,15 +89,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { Message, Lock, View, Hide, Management } from "@element-plus/icons-vue";
 import type { FormInstance, FormRules } from "element-plus";
-
-type ApiError = {
-  response?: {
-    status?: number;
-    data?: {
-      detail?: string;
-    };
-  };
-};
+import { ApiError } from "@/api/generated";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -139,7 +131,11 @@ const rules: FormRules = {
       trigger: "blur",
     },
     {
-      validator: (_rule, value, callback) => {
+      validator: (
+        _rule: unknown,
+        value: string,
+        callback: (error?: Error) => void,
+      ) => {
         if (value !== form.value.password) {
           callback(new Error("パスワードが一致しません"));
         } else {
@@ -164,15 +160,19 @@ const handleRegister = async () => {
     await authStore.register(form.value.email, form.value.password);
     router.push("/dashboard");
   } catch (error: unknown) {
-    const err = error as ApiError;
-    const status = err.response?.status;
+    if (error instanceof ApiError) {
+      const status = error.status;
 
-    if (status === 409) {
-      errorMessage.value = "このメールアドレスは既に登録されています";
-    } else if (status === 422) {
-      errorMessage.value = "入力内容に誤りがあります";
+      if (status === 409) {
+        errorMessage.value = "このメールアドレスは既に登録されています";
+      } else if (status === 400) {
+        errorMessage.value = "入力内容に誤りがあります";
+      } else {
+        errorMessage.value = "登録に失敗しました";
+      }
     } else {
-      errorMessage.value = "登録に失敗しました";
+      errorMessage.value =
+        "サーバーに接続できません。しばらく経ってから再度お試しください";
     }
   } finally {
     loading.value = false;

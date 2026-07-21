@@ -68,6 +68,11 @@
           </el-button>
         </el-form-item>
       </el-form>
+      <div class="forgot-password-link">
+        <router-link to="/forgot-password"
+          >パスワードをお忘れですか？</router-link
+        >
+      </div>
     </el-card>
   </div>
 </template>
@@ -78,16 +83,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { Message, Lock, View, Hide, Management } from "@element-plus/icons-vue";
 import type { FormInstance, FormRules } from "element-plus";
-
-type ApiError = {
-  response?: {
-    status?: number;
-    data?: {
-      detail?: string;
-    };
-  };
-  code?: string;
-};
+import { ApiError } from "@/api/generated";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -133,18 +129,19 @@ const handleLogin = async () => {
     await authStore.login(form.value.email, form.value.password);
     router.push("/dashboard");
   } catch (error: unknown) {
-    const err = error as ApiError;
-    const status = err.response?.status;
+    if (error instanceof ApiError) {
+      const status = error.status;
 
-    if (status === 401) {
-      errorMessage.value = "メールアドレスまたはパスワードが正しくありません";
-    } else if (status === 422) {
-      errorMessage.value = "入力内容に誤りがあります";
-    } else if (!status) {
+      if (status === 401) {
+        errorMessage.value = "メールアドレスまたはパスワードが正しくありません";
+      } else if (status === 400) {
+        errorMessage.value = "入力内容に誤りがあります";
+      } else {
+        errorMessage.value = "ログインに失敗しました";
+      }
+    } else {
       errorMessage.value =
         "サーバーに接続できません。しばらく経ってから再度お試しください";
-    } else {
-      errorMessage.value = "ログインに失敗しました";
     }
   } finally {
     loading.value = false;
@@ -204,5 +201,11 @@ const handleLogin = async () => {
 
 .mb-4 {
   margin-bottom: 16px;
+}
+
+css.forgot-password-link {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 0.85rem;
 }
 </style>

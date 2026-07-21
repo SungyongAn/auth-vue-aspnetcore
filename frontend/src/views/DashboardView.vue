@@ -12,14 +12,20 @@
       <div class="dashboard-content">
         <p>ようこそ、{{ userEmail }} さん。</p>
 
-        <el-button type="danger" @click="handleLogout"> ログアウト </el-button>
+        <router-link to="/change-password">
+          <el-button type="primary" plain>パスワード変更</el-button>
+        </router-link>
+
+        <el-button type="danger" :loading="loggingOut" @click="handleLogout">
+          ログアウト
+        </el-button>
       </div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { Management } from "@element-plus/icons-vue";
@@ -27,13 +33,20 @@ import { Management } from "@element-plus/icons-vue";
 const router = useRouter();
 const authStore = useAuthStore();
 
-// ユーザー情報（メールアドレス）を表示
+const loggingOut = ref(false);
+
+// ユーザー情報(メールアドレス)を表示
 const userEmail = computed(() => authStore.user?.email ?? "ユーザー");
 
 // ログアウト処理
-const handleLogout = () => {
-  authStore.logout();
-  router.push("/login");
+const handleLogout = async () => {
+  loggingOut.value = true;
+  try {
+    await authStore.logout();
+  } finally {
+    loggingOut.value = false;
+    router.push("/login");
+  }
 };
 </script>
 

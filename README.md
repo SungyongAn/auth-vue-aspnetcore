@@ -1,54 +1,101 @@
-# 認証テンプレート  
-Vue + ASP.NET Core（Clean Architecture）  
-JWT / Refresh Token（HttpOnly Cookie） / OpenAPI / 型生成
+# 認証テンプレート
+
+Vue + ASP.NET Core（Clean Architecture）
+
+JWT / Refresh Token（HttpOnly Cookie） / OpenAPI / TypeScript 型生成
 
 ---
 
 ## 📌 概要
 
-このプロジェクトは、以下の技術を組み合わせた **実務レベルの認証テンプレート** です。
+このプロジェクトは、Vue と ASP.NET Core を用いて構築した、Clean Architecture ベースの認証テンプレートです。
 
-- **Vue 3（TypeScript）**
-- **ASP.NET Core（C#）**
-- **Clean Architecture**
-- **JWT（アクセストークン）**
-- **リフレッシュトークン（HttpOnly Cookie）**
-- **OpenAPI（Swagger）**
-- **api-typescript-codegen による型生成**
-- **MySQL 8.0**
-- **Docker / docker-compose**
+認証機能を安全かつ再利用可能な形で実装することを目的としており、実務で利用されるセキュリティ対策や設計手法を取り入れています。
 
-認証機能を安全に実装するためのベストプラクティスをすべて盛り込んでいます。
+### 主な特徴
+
+- Vue 3 + TypeScript
+- ASP.NET Core 10
+- Clean Architecture
+- JWT（アクセストークン）
+- Refresh Token（HttpOnly Cookie）
+- リフレッシュトークンのローテーション
+- Argon2id によるパスワードハッシュ
+- パスワード変更・パスワードリセット（メール送信）
+- OpenAPI 3.1 自動生成
+- TypeScript API クライアント自動生成
+- Element Plus（UIコンポーネント）
+- MySQL 8.0
+- Docker / Docker Compose
 
 ---
 
-## 🧱 アーキテクチャ構成
+## 🧱 アーキテクチャ
 
+本システムは Clean Architecture を採用しています。
+
+```text
+Api
+ ↓
+
+Application
+ ↓
+
+Domain
+
+Infrastructure
+ ├──→ Application
+ └──→ Domain
 ```
+
+### 各層の責務
+
+| 層             | 責務                                |
+| -------------- | ----------------------------------- |
+| Domain         | エンティティ、ValueObject、不変条件 |
+| Application    | UseCase、DTO、Interface             |
+| Infrastructure | DB、JWT、メール送信、Repository 実装 |
+| Api            | Controller、認証、DI、OpenAPI       |
+
+---
+
+## 📁 ディレクトリ構成
+
+```text
 backend/
-  Api/
-  Application/
-  Domain/
-  Infrastructure/
+├── Api/
+├── Application/
+├── Domain/
+└── Infrastructure/
 
 frontend/
-  src/
-    api/generated/
-    stores/
-    pages/
-    components/
+└── src/
+    ├── api/
+    │   ├── generated/
+    │   └── withAuthRetry.ts
+    ├── stores/
+    │   └── auth.ts
+    ├── router/
+    └── views/
+        ├── LoginView.vue
+        ├── RegisterView.vue
+        ├── DashboardView.vue
+        ├── ChangePasswordView.vue
+        ├── ForgotPasswordView.vue
+        └── ResetPasswordView.vue
 
 doc/
-  architecture.md
-  domain-design.md
-  application-design.md
-  infrastructure-design.md
-  api-design.md
-  db-design.md
-  auth-flow.md
-  security.md
+├── architecture.md
+├── domain-design.md
+├── application-design.md
+├── infrastructure-design.md
+├── api-design.md
+├── db-design.md
+├── auth-flow.md
+└── security.md
 
 docker-compose.yml
+README.md
 ```
 
 ---
@@ -56,106 +103,337 @@ docker-compose.yml
 ## 🔐 認証方式
 
 ### アクセストークン（JWT）
-- 有効期限：短寿命（5〜15分）
-- 保存場所：フロントのメモリ（Pinia）
-- Authorization ヘッダで送信
 
-### リフレッシュトークン（Cookie）
-- HttpOnly / Secure / SameSite=strict
-- 有効期限：長寿命（7〜30日）
-- `/auth/refresh` でローテーション方式
+- 有効期限：15 分
+- 保存場所：Pinia（メモリのみ）
+- localStorage / sessionStorage は使用しない
+- Authorization ヘッダーで送信
 
----
+### リフレッシュトークン
 
-## 📚 ドキュメント一覧（doc/）
+- 保存場所：HttpOnly Cookie
+- 有効期限：14 日
+- Secure / SameSite=Strict
+- `/auth/refresh` でローテーション
 
-| ファイル名 | 内容 |
-|------------|------|
-| architecture.md | Clean Architecture 全体設計 |
-| domain-design.md | Domain 層（User / RefreshToken / ValueObject） |
-| application-design.md | UseCase / DTO / Interface |
-| infrastructure-design.md | Repository / TokenService / DbContext |
-| api-design.md | API 仕様（OpenAPI / Cookie / JWT） |
-| db-design.md | DB 設計（users / refresh_tokens） |
-| auth-flow.md | 認証フロー（Register / Login / Refresh / Logout） |
-| security.md | セキュリティ仕様（XSS / CSRF / Argon2id） |
+### トークン保存方式
 
----
-
-## 🚀 起動方法（Docker）
-
-### 1. ビルド & 起動
-
-```bash
-docker-compose up --build
+```text
+ブラウザ Cookie
+    ↓
+生の Refresh Token
+    ↓
+サーバー側
+    ↓
+SHA256(refreshToken)
 ```
 
-### 2. アクセス
-
-| サービス | URL |
-|----------|------|
-| フロント（Vue） | http://localhost:5173 |
-| バックエンド（ASP.NET Core） | http://localhost:5000 |
-| Swagger（OpenAPI） | http://localhost:5000/swagger |
+データベースにはハッシュ化された値のみを保存します。パスワードリセットトークンも同様の方式でハッシュ化して保存されます。
 
 ---
 
-## 🧪 テスト
+## 🔄 認証フロー
 
-- Domain 層は外部依存がないためユニットテストが容易  
-- Application 層は Interface によりモック可能  
-- Infrastructure 層は Repository / TokenService のテストが可能  
+### Register
+
+```text
+Register
+    ↓
+ユーザー作成
+    ↓
+LoginUseCase 呼び出し
+    ↓
+AccessToken 発行
+    ↓
+RefreshToken 発行
+    ↓
+Cookie 保存
+```
+
+### Login
+
+```text
+Login
+    ↓
+既存 RefreshToken を全て無効化
+    ↓
+AccessToken 発行
+    ↓
+RefreshToken 発行
+    ↓
+Cookie 保存
+```
+
+### Refresh
+
+```text
+Refresh
+    ↓
+Cookie 読み込み
+    ↓
+SHA256 ハッシュ化
+    ↓
+DB 検証
+    ↓
+旧トークン無効化
+    ↓
+新トークン発行
+```
+
+### Logout
+
+```text
+Logout
+    ↓
+RefreshToken 無効化
+    ↓
+Cookie 削除
+```
+
+### パスワード変更（ログイン中）
+
+```text
+ChangePassword
+    ↓
+現在のパスワード検証
+    ↓
+新パスワードへ更新
+    ↓
+全 RefreshToken 無効化
+    ↓
+再ログインが必要
+```
+
+### パスワードリセット（忘却時）
+
+```text
+ForgotPassword（メールアドレス送信）
+    ↓
+PasswordResetToken 発行（有効期限 1 時間）
+    ↓
+リセットリンクをメール送信
+
+        ↓（メール内リンクをクリック）
+
+ResetPassword（トークン + 新パスワード送信）
+    ↓
+トークン検証
+    ↓
+新パスワードへ更新
+    ↓
+全 RefreshToken 無効化
+```
+
+ユーザーが存在しないメールアドレスを指定した場合も、`/auth/forgot-password` は常に同じ成功レスポンスを返します（メールアドレス列挙攻撃対策）。
+
+---
+
+## 🔄 フロントエンド認証制御
+
+### Silent Refresh
+
+アプリ起動時に `/auth/refresh` を自動実行し、Cookie が有効であればログイン状態を復元します。
+
+### 401 自動リトライ
+
+API が 401 を返した場合、
+
+1. `/auth/refresh`
+2. AccessToken 再取得
+3. 元のリクエストを再実行
+
+を自動で行います（`withAuthRetry` 関数として汎用化）。
+
+---
+
+## 📚 ドキュメント
+
+| ファイル                 | 内容                      |
+| ------------------------ | ------------------------- |
+| architecture.md          | システム全体設計          |
+| domain-design.md         | Domain 層                 |
+| application-design.md    | UseCase / DTO / Interface |
+| infrastructure-design.md | Repository / TokenService / メール送信 |
+| api-design.md            | API 設計                  |
+| db-design.md             | DB 設計                   |
+| auth-flow.md             | 認証フロー                |
+| security.md              | セキュリティ設計          |
+
+---
+
+## ⚙️ OpenAPI と型生成
+
+### OpenAPI 生成
+
+ASP.NET Core の `Microsoft.AspNetCore.OpenApi` により OpenAPI 3.1 を自動生成します。
+
+```bash
+GET /openapi/v1.json
+```
+
+### TypeScript クライアント生成
+
+```bash
+curl http://localhost:5000/openapi/v1.json -o openapi.json
+
+npx openapi-typescript-codegen \
+  --input ./openapi.json \
+  --output src/api/generated \
+  --client fetch
+```
+
+生成されるもの：
+
+- models/
+- services/
+- core/OpenAPI.ts
+
+---
+
+## 🚀 起動方法
+
+### 環境変数の準備
+
+ルートディレクトリに `.env` を作成し、以下を設定してください（`.env.example` を参照）。
+
+```bash
+JWT_KEY=<ランダムな長い文字列>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=<送信元メールアドレス>
+SMTP_PASSWORD=<SMTPパスワード、Gmailの場合はアプリパスワード>
+SMTP_FROM_ADDRESS=<送信元メールアドレス>
+```
+
+パスワードリセット機能を使わない場合、SMTP関連の値は空でも起動可能ですが、`/auth/forgot-password` を呼び出した際にメール送信でエラーになります。
+
+### バックエンド・DB
+
+```bash
+docker compose up --build
+```
+
+### フロントエンド
+
+```bash
+cd frontend
+
+npm install
+
+npm run dev
+```
+
+### アクセス先
+
+| サービス    | URL                                    |
+| ----------- | --------------------------------------- |
+| Frontend    | http://localhost:5173                   |
+| Backend API | http://localhost:5000                   |
+| OpenAPI     | http://localhost:5000/openapi/v1.json   |
+
+---
+
+## 🧪 テスト容易性
+
+### Domain
+
+- 外部依存なし
+- 純粋なユニットテストが可能
+
+### Application
+
+- Interface をモック可能（`IEmailService` も含む）
+
+### Infrastructure
+
+- Repository
+- TokenService
+- PasswordHasher
+- EmailService
+
+を個別にテスト可能です。
 
 ---
 
 ## 🔧 使用技術
 
 ### Backend
-- ASP.NET Core 8
-- Clean Architecture
+
+- ASP.NET Core 10
 - EF Core
 - MySQL 8.0
-- JWT（System.IdentityModel.Tokens.Jwt）
-- Argon2id（パスワードハッシュ）
+- Clean Architecture
+- JWT Bearer Authentication
+- Argon2id
+- MailKit（SMTPメール送信）
+- Microsoft.AspNetCore.OpenApi
 
 ### Frontend
+
 - Vue 3
 - TypeScript
 - Pinia
 - Vite
-- api-typescript-codegen（型生成）
+- Vue Router
+- Element Plus
+- openapi-typescript-codegen
 
 ### DevOps
-- Docker / docker-compose
+
+- Docker
+- Docker Compose
 
 ---
 
 ## 🛡 セキュリティ対策
 
-- Argon2id によるパスワードハッシュ  
-- HttpOnly / Secure / SameSite=strict Cookie  
-- リフレッシュトークンのローテーション方式  
-- JWT の短寿命化  
-- XSS / CSRF / Replay Attack 対策  
-- Clean Architecture による責務分離  
+- Argon2id によるパスワードハッシュ
+- `CryptographicOperations.FixedTimeEquals`
+- JWT の短寿命化
+- HttpOnly Cookie
+- SameSite=Strict
+- Refresh Token ローテーション
+- SHA256 によるトークン保存
+- XSS 対策
+- CSRF 対策
+- Replay Attack 対策
+- セッション固定攻撃対策
+- メールアドレス列挙攻撃対策（パスワードリセット時）
+- パスワードリセットトークンの短寿命化（1時間）・使用済みトークンの再利用防止
+
+---
+
+## ⚠️ 制限事項
+
+このテンプレートはセキュリティを優先し、**1 ユーザー 1 セッション** の構成を採用しています。
+
+そのため、
+
+- PC でログイン
+- スマートフォンでログイン
+
+した場合、先にログインしていたセッションは無効化されます。同様に、パスワード変更・パスワードリセットを行った場合も、既存の全セッションが無効化されます。
+
+複数デバイスでの同時ログインを許可する場合は、`RevokeAllByUserIdAsync()` の設計を変更する必要があります。
+
+また、パスワードリセットメールの送信には個人のGmailアカウント（SMTP）を使用しており、開発・検証用途を想定しています。本番運用する場合は、SendGrid や AWS SES 等のメール配信サービスに `IEmailService` の実装を差し替えることを推奨します。
 
 ---
 
 ## 📈 今後の拡張
 
-- ロール管理（Admin / User）
-- MFA（多要素認証）
-- メール認証（Email Verification）
-- パスワードリセット
-- WebAuthn（パスキー）
+- ロール管理
+- メール認証（アカウント登録時の確認メール）
+- MFA
 - Redis セッション管理
-- Audit Log（監査ログ）
+- WebAuthn（パスキー）
+- Audit Log
+- BFF パターンへの移行
+- フロントエンドのコンテナ化（Nginx配信）
+- 本番向けメール配信サービス（SendGrid等）への切り替え
 
 ---
 
 ## 📝 ライセンス
 
 MIT License
-
----
-
